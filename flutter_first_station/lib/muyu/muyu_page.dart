@@ -1,0 +1,205 @@
+import 'dart:math';
+
+import 'package:flame_audio/flame_audio.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_first_station/muyu/animate_text.dart';
+import 'package:flutter_first_station/muyu/count_panel.dart';
+import 'package:flutter_first_station/muyu/models/audio_option.dart';
+import 'package:flutter_first_station/muyu/models/image_option.dart';
+import 'package:flutter_first_station/muyu/models/merit_record.dart';
+import 'package:flutter_first_station/muyu/muyu_app_bar.dart';
+import 'package:flutter_first_station/muyu/muyu_image.dart';
+import 'package:flutter_first_station/muyu/options/select_audio.dart';
+import 'package:flutter_first_station/muyu/options/select_image.dart';
+import 'package:flutter_first_station/muyu/record_history.dart';
+import 'package:flutter_first_station/storage/db_storage/db_storage.dart';
+import 'package:flutter_first_station/storage/sp_storage.dart';
+import 'package:uuid/uuid.dart';
+
+class MuyuPage extends StatefulWidget {
+  const MuyuPage({super.key});
+
+  @override
+  State<MuyuPage> createState() => _MuyuPageState();
+}
+
+class _MuyuPageState extends State<MuyuPage>
+    with AutomaticKeepAliveClientMixin {
+  int _counter = 0;
+  MeritRecord? _cruRecord;
+
+  int _activeImageIndex = 0;
+  int _activeAudioIndex = 0;
+
+  final Random _random = Random();
+  final Uuid uuid = Uuid();
+
+  List<MeritRecord> _records = [];
+
+  final List<AudioOption> audioOptions = const [
+    AudioOption('音效1', 'muyu_1.mp3'),
+    AudioOption('音效2', 'muyu_2.mp3'),
+    AudioOption('音效3', 'muyu_3.mp3'),
+  ];
+
+  final List<ImageOption> imageOptions = const [
+    ImageOption('基础版', 'assets/images/muyu.png', 1, 3),
+    ImageOption('尊享版', 'assets/images/muyu2.png', 3, 6),
+  ];
+
+  AudioPool? pool;
+
+  @override
+  void initState() {
+    super.initState();
+    _initAudioPool();
+    _initConfig();
+  }
+
+  void _initConfig() async {
+    Map<String, dynamic> config = await SpStorage.instance.readMuYUConfig();
+    _counter = config['counter'] ?? 0;
+    _activeImageIndex = config['activeImageIndex'] ?? 0;
+    _activeAudioIndex = config['activeAudioIndex'] ?? 0;
+    _records = await DbStorage.instance.meritRecordDao.query();
+    print("sssss - $_records");
+    setState(() {});
+  }
+
+  void _initAudioPool() async {
+    pool = await FlameAudio.createPool(
+      audioOptions[_activeAudioIndex].src,
+      maxPlayers: 1,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return Scaffold(
+      appBar: MuyuAppBar(
+        onTapHistory: _toHistory,
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: CountPanel(
+              count: _counter,
+              onTapSwitchAudio: _onTapSwitchAudio,
+              onTapSwitchImage: _onTapSwitchImage,
+            ),
+          ),
+          Expanded(
+            child: Stack(
+              alignment: Alignment.topCenter,
+              children: [
+                MuyuAssetsImage(
+                  image: activeImage,
+                  onTap: _onKnock,
+                ),
+                if (_cruRecord != null) AnimateText(record: _cruRecord!)
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _toHistory() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => RecordHistory(
+          records: _records.reversed.toList(),// 倒序
+        ),
+      ),
+    );
+  }
+
+  void _onTapSwitchAudio() {
+    showCupertinoModalPopup(
+      context: context,
+      builder: (BuildContext context) {
+        return AudioOptionPanel(
+          audioOptions: audioOptions,
+          activeIndex: _activeAudioIndex,
+          onSelect: _onSelectAudio,
+        );
+      },
+    );
+  }
+
+  void _onTapSwitchImage() {
+    showCupertinoModalPopup(
+      context: context,
+      builder: (BuildContext context) {
+        return ImageOptionPanel(
+          imageOptions: imageOptions,
+          activeIndex: _activeImageIndex,
+          onSelect: _onSelectImage,
+        );
+      },
+    );
+  }
+
+  void _onKnock() {
+    pool?.start();
+    setState(() {
+      String id = uuid.v4();
+      _cruRecord = MeritRecord(
+        id,
+        DateTime.now().millisecondsSinceEpoch,
+        knockValue,
+        activeImage,
+        audioOptions[_activeAudioIndex].name,
+      );
+      _counter += _cruRecord!.value;
+      saveConfig();
+      DbStorage.instance.meritRecordDao.insert(_cruRecord!);
+      // 添加功德记录
+      _records.add(_cruRecord!);
+    });
+  }
+
+  void saveConfig() {
+    SpStorage.instance.saveMuYUConfig(
+      counter: _counter,
+      activeImageIndex: _activeImageIndex,
+      activeAudioIndex: _activeAudioIndex,
+    );
+  }
+
+  String get activeImage => imageOptions[_activeImageIndex].src;
+
+  int get knockValue {
+    int min = imageOptions[_activeImageIndex].min;
+    int max = imageOptions[_activeImageIndex].max;
+    return min + _random.nextInt(max + 1 - min);
+  }
+
+  void _onSelectImage(int value) {
+    Navigator.of(context).pop();
+    if (value == _activeImageIndex) return;
+    setState(() {
+      _activeImageIndex = value;
+      saveConfig();
+    });
+  }
+
+  String get activeAudio => audioOptions[_activeAudioIndex].src;
+
+  void _onSelectAudio(int value) async {
+    Navigator.of(context).pop();
+    if (value == _activeAudioIndex) return;
+    _activeAudioIndex = value;
+    saveConfig();
+    pool = await FlameAudio.createPool(
+      activeAudio,
+      maxPlayers: 1,
+    );
+  }
+
+  @override
+  bool get wantKeepAlive => true;
+}

@@ -1,0 +1,31 @@
+name: flutter_first_station
+description: "A new Flutter project."
+publish_to: "none"
+version: 0.1.0
+
+environment:
+  sdk: ^3.5.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flame_audio: ^2.10.7 # 添加音频库
+  uuid: ^4.5.1 # 添加uuid库
+  intl: ^0.20.2
+  shared_preferences: ^2.5.2 # 添加shared_preferences库
+  sqflite: ^2.4.1 # 添加sqflite库
+  dio: ^5.8.0+1 # 添加dio库
+  webview_flutter: ^4.10.0 # 添加webview_flutter库
+  easy_refresh: ^3.4.0 # 添加easy_refresh库
+  cupertino_icons: ^1.0.8 # 添加cupertino_icons库
+  get: ^4.7.2 # 添加GetX库
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+    - assets/audio/
